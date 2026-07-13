@@ -7,21 +7,29 @@ class AuthRepository {
    * @returns {Promise<Object>} The created User document
    */
   async createUser(userData) {
-    return await User.create(userData);
+    try {
+      return await User.create(userData);
+    } catch (error) {
+      throw error;
+    }
   }
 
   /**
    * Find a user by email
    * @param {string} email 
-   * @param {boolean} includePassword Whether to include the hashed password in the output
+   * @param {boolean} includePassword Whether to select the password field
    * @returns {Promise<Object|null>} The User document or null
    */
   async findByEmail(email, includePassword = false) {
-    const query = User.findOne({ email });
-    if (includePassword) {
-      query.select("+password");
+    try {
+      const query = User.findOne({ email });
+      if (includePassword) {
+        query.select("+password");
+      }
+      return await query.exec();
+    } catch (error) {
+      throw error;
     }
-    return await query.exec();
   }
 
   /**
@@ -30,16 +38,11 @@ class AuthRepository {
    * @returns {Promise<Object|null>} The User document or null
    */
   async findById(id) {
-    return await User.findById(id).exec();
-  }
-
-  /**
-   * Find a user by their refresh token
-   * @param {string} refreshToken 
-   * @returns {Promise<Object|null>} The User document or null
-   */
-  async findByRefreshToken(refreshToken) {
-    return await User.findOne({ refreshToken }).select("+refreshToken").exec();
+    try {
+      return await User.findById(id).exec();
+    } catch (error) {
+      throw error;
+    }
   }
 
   /**
@@ -49,24 +52,83 @@ class AuthRepository {
    * @returns {Promise<Object|null>} The updated User document
    */
   async updateRefreshToken(userId, refreshToken) {
-    return await User.findByIdAndUpdate(
-      userId,
-      { refreshToken },
-      { returnDocument: "after" }
-    ).exec();
+    try {
+      return await User.findByIdAndUpdate(
+        userId,
+        { refreshToken },
+        { returnDocument: "after" }
+      ).exec();
+    } catch (error) {
+      throw error;
+    }
   }
 
   /**
-   * Clear the user's refresh token (logout)
+   * Remove the user's refresh token (logout)
    * @param {string} userId 
    * @returns {Promise<Object|null>} The updated User document
    */
-  async clearRefreshToken(userId) {
-    return await User.findByIdAndUpdate(
-      userId,
-      { $unset: { refreshToken: 1 } },
-      { returnDocument: "after" }
-    ).exec();
+  async removeRefreshToken(userId) {
+    try {
+      return await User.findByIdAndUpdate(
+        userId,
+        { $unset: { refreshToken: 1 } },
+        { returnDocument: "after" }
+      ).exec();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Set user's email/phone verification status to true
+   * @param {string} userId 
+   * @returns {Promise<Object|null>} The updated User document
+   */
+  async updateVerificationStatus(userId) {
+    try {
+      return await User.findByIdAndUpdate(
+        userId,
+        { isVerified: true },
+        { returnDocument: "after" }
+      ).exec();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Update generic user profile data
+   * @param {string} userId 
+   * @param {Object} updateData 
+   * @returns {Promise<Object|null>} The updated User document
+   */
+  async updateProfile(userId, updateData) {
+    try {
+      // Exclude sensitive fields from generic updates to prevent parameter injection
+      const { password, role, refreshToken, isVerified, ...safeUpdateData } = updateData;
+
+      return await User.findByIdAndUpdate(
+        userId,
+        { $set: safeUpdateData },
+        { returnDocument: "after" }
+      ).exec();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Find a user by their active refresh token
+   * @param {string} refreshToken 
+   * @returns {Promise<Object|null>} The User document or null
+   */
+  async findByRefreshToken(refreshToken) {
+    try {
+      return await User.findOne({ refreshToken }).select("+refreshToken").exec();
+    } catch (error) {
+      throw error;
+    }
   }
 }
 

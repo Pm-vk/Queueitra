@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import bcrypt from "bcrypt";
 
 const userSchema = new mongoose.Schema(
   {
@@ -25,6 +24,7 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, "Password is required"],
+      minlength: [6, "Password must be at least 6 characters long"],
       select: false,
     },
     role: {
@@ -45,25 +45,13 @@ const userSchema = new mongoose.Schema(
     },
     profileImage: {
       type: String,
+      trim: true,
     },
   },
   {
     timestamps: true,
   }
 );
-
-// Pre-save hook to hash password
-userSchema.pre("save", async function () {
-  if (!this.isModified("password")) return;
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-});
-
-
-// Instance method to compare password
-userSchema.methods.comparePassword = async function (candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
-};
 
 const User = mongoose.model("User", userSchema);
 
