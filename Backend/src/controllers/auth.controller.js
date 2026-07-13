@@ -4,46 +4,35 @@ import ApiResponse from "../utils/ApiResponse.js";
 import ApiError from "../utils/ApiError.js";
 import { env } from "../config/env.js";
 
-// Global cookie configuration options
-const cookieOptions = {
+// Secure cookie configuration for production environments
+const refreshTokenCookieOptions = {
   httpOnly: true,
   secure: env.NODE_ENV === "production",
   sameSite: "strict",
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days matching token expiry
   path: "/",
-};
-
-const accessTokenOptions = {
-  ...cookieOptions,
-  maxAge: 15 * 60 * 1000, // 15 minutes
-};
-
-const refreshTokenOptions = {
-  ...cookieOptions,
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
 class AuthController {
   /**
-   * Register a new user and set session cookies
+   * Handle user registration request
    */
   register = asyncHandler(async (req, res) => {
     const { user, accessToken, refreshToken } = await authService.registerUser(req.body);
 
     return res
       .status(201)
-      .cookie("accessToken", accessToken, accessTokenOptions)
-      .cookie("refreshToken", refreshToken, refreshTokenOptions)
+      .cookie("refreshToken", refreshToken, refreshTokenCookieOptions)
       .json(
         new ApiResponse(201, "User registered successfully", {
           user,
           accessToken,
-          refreshToken,
         })
       );
   });
 
   /**
-   * Login user, compare credentials, and set session cookies
+   * Handle user login request and issue tokens
    */
   login = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
@@ -51,24 +40,23 @@ class AuthController {
 
     return res
       .status(200)
-      .cookie("accessToken", accessToken, accessTokenOptions)
-      .cookie("refreshToken", refreshToken, refreshTokenOptions)
+      .cookie("refreshToken", refreshToken, refreshTokenCookieOptions)
       .json(
         new ApiResponse(200, "User logged in successfully", {
           user,
           accessToken,
-          refreshToken,
         })
       );
   });
 
   /**
-   * Logout user, clear DB session, and delete client cookies
+   * Handle user logout request and invalidate session
    */
   logout = asyncHandler(async (req, res) => {
-    await authService.logoutUser(req.user._id);
+    const userId = req.user?._id;
+    await authService.logoutUser(userId);
 
-    const clearOptions = {
+    const clearCookieOptions = {
       httpOnly: true,
       secure: env.NODE_ENV === "production",
       sameSite: "strict",
@@ -77,46 +65,44 @@ class AuthController {
 
     return res
       .status(200)
-      .clearCookie("accessToken", clearOptions)
-      .clearCookie("refreshToken", clearOptions)
-      .json(new ApiResponse(200, "Logged out successfully"));
+      .clearCookie("refreshToken", clearCookieOptions)
+      .json(new ApiResponse(200, "User logged out successfully"));
   });
 
   /**
-   * Refresh and rotate active credentials
+   * Refresh access token and rotate the refresh token
    */
-  refresh = asyncHandler(async (req, res) => {
-    const oldRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
-
+  refreshToken = asyncHandler(async (req, res) => {
+    const oldRefreshToken = req.cookies?.refreshToken;
     if (!oldRefreshToken) {
       throw new ApiError(401, "Refresh token is missing");
     }
 
-    const { user, accessToken, refreshToken: newRefreshToken } =
+    const { accessToken, refreshToken: newRefreshToken } =
       await authService.refreshAccessToken(oldRefreshToken);
 
     return res
       .status(200)
-      .cookie("accessToken", accessToken, accessTokenOptions)
-      .cookie("refreshToken", newRefreshToken, refreshTokenOptions)
+      .cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions)
       .json(
-        new ApiResponse(200, "Tokens refreshed successfully", {
-          user,
+        new ApiResponse(200, "Token refreshed successfully", {
           accessToken,
-          refreshToken: newRefreshToken,
         })
       );
   });
 
   /**
-   * Fetch current user profile details
+   * Get currently logged-in user profile
    */
-  me = asyncHandler(async (req, res) => {
+  getCurrentUser = asyncHandler(async (req, res) => {
+    const userId = req.user?._id;
+    const user = await authService.getCurrentUser(userId);
+
     return res
       .status(200)
       .json(
-        new ApiResponse(200, "Current user retrieved successfully", {
-          user: req.user,
+        new ApiResponse(200, "User profile retrieved successfully", {
+          user,
         })
       );
   });
